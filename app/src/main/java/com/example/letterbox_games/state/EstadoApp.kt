@@ -397,7 +397,8 @@ class EstadoApp(context: Context) {
             Amigo("ana", "Ana", "🦊", "Ama metroidvanias e jogos indie."),
             Amigo("bruno", "Bruno", "🐙", "Só RPG, só platina."),
             Amigo("carla", "Carla", "🎧", "Joga de tudo, principalmente co-op."),
-            Amigo("diego", "Diego", "🚀", "Competitivo, mas também curte indie.")
+            Amigo("diego", "Diego", "🚀", "Competitivo, mas também curte indie."),
+            Amigo("matheus", "Matheus", "🏠", "Curte jogos de estratégia e simulação.")
         )
 
         fun atividades() = listOf(
