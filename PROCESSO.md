@@ -6,7 +6,7 @@
 # Processo e decisões do trio — Trabalho 2 (MAF)
 
 **App:** Letterbox Games — um diário de jogos social, parecido com o Letterboxd, mas para games.
-**Integrantes:** _preencher com os nomes do trio_
+**Integrantes:** Gabriel Consulo, Gustavo Macedo e Matheus Henrique Farias de Jesus.
 
 ---
 
@@ -233,7 +233,57 @@ O botão de voltar da `TopAppBar` funciona nas 3 telas secundárias.
 
 ---
 
-## 8. Observação
+## 8. Observação do Trabalho 2
 
-Os jogos, amigos e atividades que aparecem ao abrir o app são **dados de exemplo fictícios**, só para a
-demonstração. Como o enunciado permite, tudo fica só na memória e volta ao estado inicial ao fechar o app.
+Na versão do Trabalho 2, os jogos, amigos e atividades eram **dados de exemplo fictícios**, só para a
+demonstração. Naquele trabalho, os dados ficavam na memória e voltavam ao estado inicial ao fechar o app.
+
+---
+
+# Trabalho 3 — Persistência de Dados com Room
+
+## 9. O que mudou desde o Trabalho 2
+
+No Trabalho 2, jogos e amigos ficavam em `mutableStateListOf` e eram perdidos ao fechar o app. No Trabalho 3, mantivemos as telas, os formulários e as rotas, mas passamos a carregar e gravar as listas de jogos e amigos no Room. As operações de banco são executadas em `Dispatchers.IO`; as telas Meus Jogos e Amigos recarregam seus dados ao abrir.
+
+## 10. Entidades, DAOs e consultas
+
+Criamos `JogoEntity` e `AmigoEntity` em `database/Entidades.kt`. Cada entidade tem um `id: Int` com `@PrimaryKey(autoGenerate = true)` e uma `chave` de texto única. A chave preserva os IDs que o app já usa nas rotas e nas relações com as atividades, sem exigir mudanças nas telas ou nos dados de exemplo. Em JogoEntity guardamos os campos usados pelo catálogo e pela biblioteca; em AmigoEntity guardamos nome, avatar e bio.
+
+Criamos `JogoDao` e `AmigoDao` em `database/Daos.kt`. Cada DAO tem inserir, buscar todos, atualizar e deletar, além de `buscarPorId(chave)` para localizar um registro na navegação. O `AppDatabase` reúne as duas entidades e expõe os DAOs usando Singleton.
+
+## 11. Migração e decisões do processo
+
+Em vez de trocar os IDs de texto já usados no app por IDs numéricos, mantivemos esses IDs como `chave` e deixamos o Room gerar IDs inteiros internos. Isso permitiu persistir os dados sem alterar o fluxo atual das telas. Os dados de exemplo são gravados na primeira abertura; nas próximas, as listas são carregadas do banco, sem recriar os exemplos por cima das alterações do usuário.
+
+As telas de lista usam `LaunchedEffect(Unit)` para solicitar a leitura ao entrar. O detalhe do jogo recebe a chave pela rota e consulta o DAO. Inserção, atualização e remoção também são feitas no banco. Erros de SQLite são registrados com `Log.e`.
+
+Uma dificuldade encontrada foi integrar o KSP com a versão atual do Android Gradle Plugin, que já inclui o Kotlin: a configuração inicial do projeto recusou a inclusão automática das fontes geradas pelo KSP. Para permitir essa integração, configuramos `android.disallowKotlinSourceSets=false` em `gradle.properties`. Depois, a compilação não pôde ser verificada porque este ambiente não tem o Android SDK configurado; por isso, ainda não temos confirmação de execução do app nem do teste de persistência no aparelho.
+
+## 12. Checklist técnica do Trabalho 3
+
+- [x] Dependências Room (`room-runtime`, `room-ktx`) e processador `room-compiler` via KSP.
+- [x] Duas entidades com chave primária inteira autogerada.
+- [x] Dois DAOs com inserir, buscar todos, atualizar e deletar suspend.
+- [x] Consultas adicionais por chave nos dois DAOs.
+- [x] `AppDatabase` versão 1 com Singleton.
+- [x] Leituras das telas de lista ao abrir e detalhe do jogo consultado pelo ID da rota.
+- [x] Operações do DAO executadas em coroutines de `Dispatchers.IO`, com registro de erros.
+- [x] README com instruções para abrir e executar o app.
+- [ ] Executar no emulador/celular: adicionar um jogo, fechar completamente o app, reabrir e confirmar a persistência.
+- [ ] Gravar e anexar ao repositório o vídeo curto desse teste de persistência, solicitado para a apresentação.
+
+O teste de build foi tentado neste ambiente, mas não pôde ser concluído porque não foi encontrado um Android SDK configurado (`ANDROID_HOME` ou `local.properties`). A prova de persistência e o vídeo precisam ser feitos em um ambiente com Android SDK e emulador/celular.
+
+## 13. Problemas comuns ao adicionar o Room
+
+Alguns erros que podem aparecer ao configurar o Room e como conferir:
+
+- **KSP não encontra ou não gera as classes do Room:** conferir se o plugin KSP está aplicado no módulo `app` e se a versão do KSP corresponde à versão do Kotlin do projeto. O compilador do Room deve ser adicionado com `ksp(...)`, não com `implementation(...)`.
+- **Erro sobre fontes Kotlin geradas pelo KSP:** neste projeto, o primeiro build mostrou que o Kotlin embutido no Android Gradle Plugin não permitia registrar essas fontes pelo caminho padrão. Foi adicionada a configuração `android.disallowKotlinSourceSets=false` em `gradle.properties`. O build ainda precisa ser confirmado com um Android SDK configurado.
+- **Android SDK não encontrado:** a tentativa de build também parou porque este ambiente não tem `ANDROID_HOME` nem `local.properties` com `sdk.dir`. No Android Studio, configurar o SDK instalado e sincronizar novamente. Esse erro não confirma nem indica falha nas entidades ou nos DAOs.
+- **Room não aceita um campo do modelo:** tipos como enum precisam ser convertidos para um tipo que o Room armazena. Aqui, `Tendencia` é guardada como texto e convertida de volta ao modelo.
+- **Consulta bloqueia a interface:** consultas e outras funções `suspend` do DAO devem ser chamadas numa coroutine fora da thread principal. Neste app, as operações são iniciadas em `Dispatchers.IO`.
+- **Erro de migração após mudar uma entidade:** se o formato do banco mudar depois de uma versão já instalada, é necessário aumentar a versão do `AppDatabase` e fornecer uma migração, ou limpar os dados do app durante o desenvolvimento. Ainda não foi necessária uma migração neste projeto, que está na versão 1.
+
+Os itens sobre campos não aceitos e migrações são situações comuns para verificar; não foram erros observados neste projeto. Até configurar o SDK e conseguir compilar e executar o app, ainda não dá para confirmar o funcionamento final do Room no aparelho.

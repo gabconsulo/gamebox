@@ -1,10 +1,18 @@
 package com.example.letterbox_games.state
 
+import android.content.Context
+import android.database.sqlite.SQLiteException
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.example.letterbox_games.database.AmigoEntity
+import com.example.letterbox_games.database.AppDatabase
+import com.example.letterbox_games.database.JogoEntity
+import com.example.letterbox_games.database.toEntity
+import com.example.letterbox_games.database.toModelo
 import com.example.letterbox_games.model.Amigo
 import com.example.letterbox_games.model.Atividade
 import com.example.letterbox_games.model.ItemFeed
@@ -12,18 +20,29 @@ import com.example.letterbox_games.model.Jogo
 import com.example.letterbox_games.model.Tendencia
 import com.example.letterbox_games.model.UM_DIA_EM_MS
 import com.example.letterbox_games.model.UMA_HORA_EM_MS
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * Guarda TODOS os dados do app em memória (mutableStateListOf).
- * Uma única instância é criada na MainActivity e repassada às telas pelo AppNavigation, então
- * uma alteração feita numa tela (ex.: remover um amigo) aparece na hora em todas as outras.
- * Os dados se perdem ao fechar o app — persistência fica para o próximo trabalho.
+ * Mantém os dados carregados para a interface e grava jogos e amigos no Room.
  */
-class EstadoApp {
-    val jogos = mutableStateListOf<Jogo>().apply { addAll(Exemplos.jogos()) }
-    val amigos = mutableStateListOf<Amigo>().apply { addAll(Exemplos.amigos()) }
+class EstadoApp(context: Context) {
+    private val banco = AppDatabase.obter(context)
+    private val preferencias = context.applicationContext.getSharedPreferences("letterbox_games", Context.MODE_PRIVATE)
+    private val escopoIo = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    val jogos = mutableStateListOf<Jogo>()
+    val amigos = mutableStateListOf<Amigo>()
     val atividades = mutableStateListOf<Atividade>().apply { addAll(Exemplos.atividades()) }
     val curtidas = mutableStateListOf<String>()
+    var jogoDoDetalhe by mutableStateOf<Jogo?>(null)
+
+    init {
+        inicializarBanco()
+    }
 
     // Perfil
     var nomePerfil by mutableStateOf("Gabriel")
@@ -44,6 +63,47 @@ class EstadoApp {
     fun jogoPorId(id: String?): Jogo? = jogos.firstOrNull { it.id == id }
 
     fun amigoPorId(id: String?): Amigo? = amigos.firstOrNull { it.id == id }
+
+    fun carregarJogos() {
+        escopoIo.launch {
+            try {
+                val resultado = banco.jogoDao().buscarTodos().map(JogoEntity::toModelo)
+                withContext(Dispatchers.Main) {
+                    jogos.clear()
+                    jogos.addAll(resultado)
+                }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível buscar os jogos no Room.", erro)
+            }
+        }
+    }
+
+    fun carregarAmigos() {
+        escopoIo.launch {
+            try {
+                val resultado = banco.amigoDao().buscarTodos().map(AmigoEntity::toModelo)
+                withContext(Dispatchers.Main) {
+                    amigos.clear()
+                    amigos.addAll(resultado)
+                }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível buscar os amigos no Room.", erro)
+            }
+        }
+    }
+
+    fun carregarJogoPorId(id: String) {
+        escopoIo.launch {
+            try {
+                val resultado = banco.jogoDao().buscarPorId(id)?.toModelo()
+                withContext(Dispatchers.Main) {
+                    jogoDoDetalhe = resultado
+                }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível buscar o jogo $id no Room.", erro)
+            }
+        }
+    }
 
     fun atividadesDoAmigo(amigoId: String): List<Atividade> =
         atividades.filter { it.amigoId == amigoId }.sortedByDescending { it.quando }
@@ -103,13 +163,13 @@ class EstadoApp {
 
     // ---------- Meus jogos ----------
 
-    /** Adiciona um jogo novo aos meus jogos; se já existir um com o mesmo nome, marca esse como jogado. */
+    /** Adiciona ou atualiza um jogo no Room. */
     fun registrarJogo(nome: String, plataforma: String, nota: Int, horas: Int, resenha: String) {
         val existente = jogos.firstOrNull { it.nome.equals(nome, ignoreCase = true) }
         if (existente != null) {
             salvarMeuJogo(existente.id, nota, horas, resenha)
         } else {
-            jogos.add(
+            persistirJogo(
                 Jogo(
                     nome = nome,
                     plataforma = plataforma,
@@ -119,29 +179,27 @@ class EstadoApp {
                     horas = horas,
                     resenha = resenha,
                     jogadoEm = System.currentTimeMillis()
-                )
+                ),
+                inserir = true
             )
         }
     }
 
     /** Marca como jogado (se ainda não era) e grava nota, horas e resenha. */
     fun salvarMeuJogo(id: String, nota: Int, horas: Int, resenha: String) {
-        val indice = jogos.indexOfFirst { it.id == id }
-        if (indice < 0) return
-        val jogo = jogos[indice]
-        jogos[indice] = jogo.copy(
+        val jogo = jogoPorId(id) ?: return
+        persistirJogo(jogo.copy(
             minhaNota = nota,
             horas = horas,
             resenha = resenha,
             jogadoEm = jogo.jogadoEm ?: System.currentTimeMillis()
-        )
+        ))
     }
 
     /** Registra mais uma hora de jogo agora (o jogo sobe para o topo da Atividade). */
     fun registrarSessao(id: String) {
-        val indice = jogos.indexOfFirst { it.id == id }
-        if (indice < 0) return
-        jogos[indice] = jogos[indice].copy(horas = jogos[indice].horas + 1, jogadoEm = System.currentTimeMillis())
+        val jogo = jogoPorId(id) ?: return
+        persistirJogo(jogo.copy(horas = jogo.horas + 1, jogadoEm = System.currentTimeMillis()))
     }
 
     /**
@@ -151,23 +209,103 @@ class EstadoApp {
     fun removerDosMeusJogos(id: String) {
         val jogo = jogoPorId(id) ?: return
         if (jogo.personalizado) {
-            jogos.removeAll { it.id == id }
-            atividades.removeAll { it.jogoId == id }
+            escopoIo.launch {
+                try {
+                    banco.jogoDao().buscarPorId(id)?.let { banco.jogoDao().deletar(it) }
+                    withContext(Dispatchers.Main) {
+                        jogos.removeAll { it.id == id }
+                        atividades.removeAll { it.jogoId == id }
+                        if (jogoDoDetalhe?.id == id) jogoDoDetalhe = null
+                    }
+                } catch (erro: SQLiteException) {
+                    Log.e(TAG, "Não foi possível remover o jogo $id do Room.", erro)
+                }
+            }
         } else {
-            val indice = jogos.indexOfFirst { it.id == id }
-            jogos[indice] = jogo.copy(minhaNota = 0, horas = 0, resenha = "", jogadoEm = null)
+            persistirJogo(jogo.copy(minhaNota = 0, horas = 0, resenha = "", jogadoEm = null))
         }
     }
 
     // ---------- Amigos ----------
 
     fun adicionarAmigo(nome: String, avatar: String, bio: String) {
-        amigos.add(0, Amigo(nome = nome, avatar = avatar, bio = bio))
+        val amigo = Amigo(nome = nome, avatar = avatar, bio = bio)
+        escopoIo.launch {
+            try {
+                banco.amigoDao().inserir(amigo.toEntity())
+                withContext(Dispatchers.Main) { amigos.add(0, amigo) }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível inserir o amigo ${amigo.nome} no Room.", erro)
+            }
+        }
     }
 
-    fun removerAmigo(id: String) {
-        amigos.removeAll { it.id == id }
-        atividades.removeAll { it.amigoId == id }
+    fun removerAmigo(id: String, aoConcluir: () -> Unit = {}) {
+        escopoIo.launch {
+            try {
+                banco.amigoDao().buscarPorId(id)?.let { banco.amigoDao().deletar(it) }
+                withContext(Dispatchers.Main) {
+                    amigos.removeAll { it.id == id }
+                    atividades.removeAll { it.amigoId == id }
+                    aoConcluir()
+                }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível remover o amigo $id do Room.", erro)
+            }
+        }
+    }
+
+    private fun persistirJogo(jogo: Jogo, inserir: Boolean = false) {
+        escopoIo.launch {
+            try {
+                val dao = banco.jogoDao()
+                if (inserir) {
+                    dao.inserir(jogo.toEntity())
+                } else {
+                    val existente = dao.buscarPorId(jogo.id)
+                    if (existente == null) {
+                        Log.e(TAG, "O jogo ${jogo.id} não foi encontrado para atualização.")
+                        return@launch
+                    }
+                    dao.atualizar(jogo.toEntity(existente.id))
+                }
+                withContext(Dispatchers.Main) {
+                    val indice = jogos.indexOfFirst { it.id == jogo.id }
+                    if (indice < 0) jogos.add(jogo) else jogos[indice] = jogo
+                    if (jogoDoDetalhe?.id == jogo.id) jogoDoDetalhe = jogo
+                }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível salvar o jogo ${jogo.id} no Room.", erro)
+            }
+        }
+    }
+
+    private fun inicializarBanco() {
+        escopoIo.launch {
+            try {
+                if (!preferencias.getBoolean("dadosIniciaisCarregados", false)) {
+                    val jogosIniciais = banco.jogoDao().buscarTodos()
+                    if (jogosIniciais.isEmpty()) {
+                        Exemplos.jogos().forEach { banco.jogoDao().inserir(it.toEntity()) }
+                    }
+                    val amigosIniciais = banco.amigoDao().buscarTodos()
+                    if (amigosIniciais.isEmpty()) {
+                        Exemplos.amigos().forEach { banco.amigoDao().inserir(it.toEntity()) }
+                    }
+                    preferencias.edit().putBoolean("dadosIniciaisCarregados", true).apply()
+                }
+                val jogosSalvos = banco.jogoDao().buscarTodos().map(JogoEntity::toModelo)
+                val amigosSalvos = banco.amigoDao().buscarTodos().map(AmigoEntity::toModelo)
+                withContext(Dispatchers.Main) {
+                    jogos.clear()
+                    jogos.addAll(jogosSalvos)
+                    amigos.clear()
+                    amigos.addAll(amigosSalvos)
+                }
+            } catch (erro: SQLiteException) {
+                Log.e(TAG, "Não foi possível inicializar os dados do Room.", erro)
+            }
+        }
     }
 
     // ---------- Atividade ----------
@@ -271,5 +409,9 @@ class EstadoApp {
             Atividade("a11", "diego", "celeste", 4, "", diasAtras(11)),
             Atividade("a12", "diego", "eldenring", 5, "Platinei.", diasAtras(18))
         )
+    }
+
+    private companion object {
+        const val TAG = "EstadoApp"
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,10 +55,15 @@ val avataresDisponiveis = listOf("🎮", "🦊", "🐙", "🎧", "🚀", "🐱",
 fun AmigosScreen(
     amigos: List<Amigo>,
     atividades: List<Atividade>,
+    onCarregar: () -> Unit,
     onAbrirDetalhe: (String) -> Unit,
     onAdicionar: (nome: String, avatar: String, bio: String) -> Unit,
     onRemover: (String) -> Unit
 ) {
+    LaunchedEffect(Unit) {
+        onCarregar()
+    }
+
     var busca by remember { mutableStateOf("") }
     var mostrarAdicionar by remember { mutableStateOf(false) }
     var amigoParaRemover by remember { mutableStateOf<Amigo?>(null) }

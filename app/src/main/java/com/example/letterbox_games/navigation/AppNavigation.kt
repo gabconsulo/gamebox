@@ -16,6 +16,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -116,6 +117,7 @@ fun AppNavigation(estado: EstadoApp) {
             composable(Rotas.MEUS_JOGOS) {
                 MeusJogosScreen(
                     jogos = estado.meusJogos,
+                    onCarregar = { estado.carregarJogos() },
                     onAdicionar = { navController.navigate(Rotas.ADICIONAR_JOGO) },
                     onAbrirDetalhe = { navController.navigate(Rotas.detalheJogo(it)) },
                     onSalvarEdicao = { id, nota, horas, resenha -> estado.salvarMeuJogo(id, nota, horas, resenha) },
@@ -141,7 +143,11 @@ fun AppNavigation(estado: EstadoApp) {
                 arguments = listOf(navArgument("id") { type = NavType.StringType })
             ) { entrada ->
                 val id = entrada.arguments?.getString("id").orEmpty()
-                val jogo = estado.jogoPorId(id)
+                LaunchedEffect(id) {
+                    estado.jogoDoDetalhe = null
+                    estado.carregarJogoPorId(id)
+                }
+                val jogo = estado.jogoDoDetalhe
                 DetalheJogoScreen(
                     jogo = jogo,
                     notaMedia = if (jogo != null) estado.notaMedia(jogo) else null,
@@ -164,6 +170,7 @@ fun AppNavigation(estado: EstadoApp) {
                 AmigosScreen(
                     amigos = estado.amigos,
                     atividades = estado.atividades,
+                    onCarregar = { estado.carregarAmigos() },
                     onAbrirDetalhe = { navController.navigate(Rotas.detalheAmigo(it)) },
                     onAdicionar = { nome, avatar, bio -> estado.adicionarAmigo(nome, avatar, bio) },
                     onRemover = { estado.removerAmigo(it) }
@@ -182,10 +189,7 @@ fun AppNavigation(estado: EstadoApp) {
                     todosJogos = estado.jogos,
                     onVoltar = { navController.popBackStack() },
                     onAbrirJogo = { navController.navigate(Rotas.detalheJogo(it)) },
-                    onRemover = {
-                        navController.popBackStack()
-                        estado.removerAmigo(id)
-                    }
+                    onRemover = { estado.removerAmigo(id) { navController.popBackStack() } }
                 )
             }
 

@@ -18,8 +18,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            // Todos os dados do app ficam nesta única instância (em memória).
-            val estado = remember { EstadoApp() }
+            // O estado da interface carrega e salva os jogos e amigos no Room.
+            val estado = remember { EstadoApp(applicationContext) }
 
             // Sem escolha feita no Perfil, o app segue o tema do celular.
             val escuro = estado.modoEscuro ?: isSystemInDarkTheme()

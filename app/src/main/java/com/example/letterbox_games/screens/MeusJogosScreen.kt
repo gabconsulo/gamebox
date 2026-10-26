@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,11 +58,16 @@ private enum class Ordem(val rotulo: String) {
 @Composable
 fun MeusJogosScreen(
     jogos: List<Jogo>,
+    onCarregar: () -> Unit,
     onAdicionar: () -> Unit,
     onAbrirDetalhe: (String) -> Unit,
     onSalvarEdicao: (id: String, nota: Int, horas: Int, resenha: String) -> Unit,
     onRemover: (String) -> Unit
 ) {
+    LaunchedEffect(Unit) {
+        onCarregar()
+    }
+
     var ordem by remember { mutableStateOf(Ordem.RECENTES) }
     var jogoEmEdicao by remember { mutableStateOf<Jogo?>(null) }
     var jogoParaRemover by remember { mutableStateOf<Jogo?>(null) }
