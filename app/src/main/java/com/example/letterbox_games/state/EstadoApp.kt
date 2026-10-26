@@ -362,6 +362,11 @@ class EstadoApp(context: Context) {
                 notaComunidade = 4.8, avaliacoes = 24800, tendencia = Tendencia.SEMPRE_EM_ALTA, variacaoJogadores = 10
             ),
             Jogo(
+                id = "re4", nome = "Resident Evil 4", plataforma = "PS5", genero = "Terror", ano = 2023,
+                descricao = "Leon S. Kennedy viaja a um vilarejo europeu para resgatar a filha do presidente, sequestrada por um culto misterioso.",
+                notaComunidade = 4.7, avaliacoes = 19600, tendencia = Tendencia.VOLTOU, variacaoJogadores = 22
+            ),
+            Jogo(
                 id = "stardew", nome = "Stardew Valley", plataforma = "Switch", genero = "Simulação", ano = 2016,
                 descricao = "Herde uma fazenda, cultive, crie animais, pesque e faça amizade com os moradores da cidade.",
                 notaComunidade = 4.8, avaliacoes = 28700, tendencia = Tendencia.SEMPRE_EM_ALTA, variacaoJogadores = 8,
