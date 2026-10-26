@@ -357,6 +357,11 @@ class EstadoApp(context: Context) {
                 notaComunidade = 4.6, avaliacoes = 50200, tendencia = Tendencia.SEMPRE_EM_ALTA, variacaoJogadores = 5
             ),
             Jogo(
+                id = "zeldatotk", nome = "The Legend of Zelda: Tears of the Kingdom", plataforma = "Switch", genero = "Aventura", ano = 2023,
+                descricao = "Link explora Hyrule por terra e pelas ilhas no céu, construindo veículos e engenhocas para enfrentar uma nova ameaça.",
+                notaComunidade = 4.8, avaliacoes = 24800, tendencia = Tendencia.SEMPRE_EM_ALTA, variacaoJogadores = 10
+            ),
+            Jogo(
                 id = "stardew", nome = "Stardew Valley", plataforma = "Switch", genero = "Simulação", ano = 2016,
                 descricao = "Herde uma fazenda, cultive, crie animais, pesque e faça amizade com os moradores da cidade.",
                 notaComunidade = 4.8, avaliacoes = 28700, tendencia = Tendencia.SEMPRE_EM_ALTA, variacaoJogadores = 8,
